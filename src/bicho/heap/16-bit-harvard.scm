@@ -3,14 +3,8 @@
 ;; set-u8! addr u8
 ;; ref-u16 addr -> u16
 ;; set-u16! addr u16
-;; *heap-size*
-
-(define *heap-end* *heap-size*)
-
-;; atmega328P-PU chip:
-;;  #x0-#x20: registers
-;;  #x20-#x60: i/o registers
-(define *heap-start* #x60)
+;; *heap-end*
+;; *heap-start*
 
 ;; The garbage collector is a mark/compact collector.  The stack grows
 ;; down and the heap grows up.  Whenever there is no room to grow the
