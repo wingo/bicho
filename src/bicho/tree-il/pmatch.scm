@@ -34,7 +34,7 @@
 
 ;;; Code:
 
-(define-module (system base pmatch)
+(define-module (bicho tree-il pmatch)
   #:export-syntax (pmatch))
 
 (define-syntax-rule (pmatch e cs ...)

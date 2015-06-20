@@ -488,7 +488,6 @@ minimum, and maximum."
       (restrict! val type -inf.0 +inf.0))))
 (define-simple-predicate-inferrer pair? &pair)
 (define-simple-predicate-inferrer null? &null)
-(define-simple-predicate-inferrer nil? &nil)
 (define-simple-predicate-inferrer symbol? &symbol)
 (define-simple-predicate-inferrer variable? &box)
 (define-simple-predicate-inferrer vector? &vector)
@@ -599,13 +598,6 @@ minimum, and maximum."
 ;;; Structs.
 ;;;
 
-;; No type-checker for allocate-struct, as we can't currently check that
-;; vt is actually a vtable.
-(define-type-inferrer (allocate-struct vt size result)
-  (restrict! vt &struct vtable-offset-user +inf.0)
-  (restrict! size &exact-integer 0 +inf.0)
-  (define! result &struct (max (&min size) 0) (&max size)))
-
 (define-type-checker (struct-ref s idx)
   (and (check-type s &struct 0 +inf.0)
        (check-type idx &exact-integer 0 +inf.0)
@@ -625,7 +617,6 @@ minimum, and maximum."
   (restrict! s &struct (1+ (&min idx)) +inf.0)
   (restrict! idx &exact-integer 0 (1- (&max s))))
 
-(define-type-aliases allocate-struct allocate-struct/immediate)
 (define-type-aliases struct-ref struct-ref/immediate)
 (define-type-aliases struct-set! struct-set!/immediate)
 

@@ -18,7 +18,7 @@
 
 ;;; Code:
 
-(define-module (system base syntax)
+(define-module (bicho tree-il syntax)
   #:export (%compute-initargs)
   #:export-syntax (define-type define-record define-record/keywords
                    record-case transform-record))

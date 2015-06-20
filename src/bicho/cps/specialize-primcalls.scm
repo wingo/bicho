@@ -41,7 +41,6 @@
         (('make-vector (? immediate-u8? n) init) 'make-vector/immediate)
         (('vector-ref v (? immediate-u8? n)) 'vector-ref/immediate)
         (('vector-set! v (? immediate-u8? n) x) 'vector-set!/immediate)
-        (('allocate-struct v (? immediate-u8? n)) 'allocate-struct/immediate)
         (('struct-ref s (? immediate-u8? n)) 'struct-ref/immediate)
         (('struct-set! s (? immediate-u8? n) x) 'struct-set!/immediate)
         (_ #f)))

@@ -50,7 +50,7 @@
     ash logand logior logxor lognot logtest logbit?
     sqrt abs
     not
-    pair? null? list? symbol? vector? string? struct? number? char? nil?
+    pair? null? list? symbol? vector? string? struct? number? char?
     bytevector? keyword? bitvector?
 
     procedure? thunk?
@@ -86,14 +86,14 @@
     fluid-ref fluid-set! with-fluid*
 
     call-with-prompt
-    abort-to-prompt* abort-to-prompt
+    abort-to-prompt
     make-prompt-tag
 
     throw error scm-error
 
     string-length string-ref string-set!
 
-    allocate-struct struct-vtable make-struct struct-ref struct-set!
+    struct-vtable make-struct struct-ref struct-set!
 
     bytevector-length
 
@@ -138,7 +138,7 @@
 (define *primitive-constructors*
   ;; Primitives that return a fresh object.
   '(acons cons cons* list vector make-vector
-    allocate-struct make-struct make-struct/no-tail
+    make-struct make-struct/no-tail
     make-prompt-tag))
 
 (define *primitive-accessors*
@@ -169,7 +169,7 @@
     ash logand logior logxor lognot logtest logbit?
     + * - / 1- 1+ sqrt abs quotient remainder modulo
     not
-    pair? null? nil? list?
+    pair? null? list?
     symbol? variable? vector? struct? string? number? char?
     bytevector? keyword? bitvector?
     complex? real? rational? inf? nan? integer? exact? inexact? even? odd?
@@ -191,7 +191,7 @@
   '(values
     eq? eqv? equal?
     not
-    pair? null? nil? list?
+    pair? null? list?
     symbol? variable? vector? struct? string? number? char?
     bytevector? keyword? bitvector?
     procedure? thunk?
@@ -603,12 +603,6 @@
                (make-prompt src #f tag thunk handler))
               (else #f)))
 
-(hashq-set! *primitive-expand-table*
-            'abort-to-prompt*
-            (case-lambda
-              ((src tag tail-args)
-               (make-abort src tag '() tail-args))
-              (else #f)))
 (hashq-set! *primitive-expand-table*
             'abort-to-prompt
             (case-lambda

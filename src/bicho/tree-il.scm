@@ -61,8 +61,7 @@
             post-order
             pre-order
 
-            tree-il=?
-            tree-il-hash))
+            tree-il=?))
 
 (define (print-tree-il exp port)
   (format port "#<tree-il ~S>" (unparse-tree-il exp)))
@@ -586,45 +585,3 @@ This is an implementation of `foldts' as described by Andy Wingo in
          (tree-il=? (cdr a) (cdr b))))
    (else
     (equal? a b))))
-
-(define-syntax hash-bits
-  (make-variable-transformer
-   (lambda (x)
-     (syntax-case x ()
-       (var
-        (identifier? #'var)
-        (logcount most-positive-fixnum))))))
-
-(define (tree-il-hash exp)
-  (let ((hash-depth 4)
-        (hash-width 3))
-    (define (hash-exp exp depth)
-      (define (rotate x bits)
-        (logior (ash x (- bits))
-                (ash (logand x (1- (ash 1 bits))) (- hash-bits bits))))
-      (define (mix h1 h2)
-        (logxor h1 (rotate h2 8)))
-      (define (hash-struct s)
-        (let ((len (struct-nfields s))
-              (h (hashq (struct-vtable s) most-positive-fixnum)))
-          (if (zero? depth)
-              h
-              (let lp ((i (max (- len hash-width) 1)) (h h))
-                (if (< i len)
-                    (lp (1+ i) (mix (hash-exp (struct-ref s i) (1+ depth)) h))
-                    h)))))
-      (define (hash-list l)
-        (let ((h (hashq 'list most-positive-fixnum)))
-          (if (zero? depth)
-              h
-              (let lp ((l l) (width 0) (h h))
-                (if (< width hash-width)
-                    (lp (cdr l) (1+ width)
-                        (mix (hash-exp (car l) (1+ depth)) h))
-                    h)))))
-      (cond
-       ((struct? exp) (hash-struct exp))
-       ((list? exp) (hash-list exp))
-       (else (hash exp most-positive-fixnum))))
-
-    (hash-exp exp 0)))

@@ -299,12 +299,6 @@ false.  It could be that both true and false proofs are available."
            (add-def! `(primcall vector-ref ,vec ,idx) val))
           (('primcall 'vector-set!/immediate vec idx val)
            (add-def! `(primcall vector-ref/immediate ,vec ,idx) val))
-          (('primcall (or 'allocate-struct 'allocate-struct/immediate)
-                      vtable size)
-           (match defs
-             ((struct)
-              (add-def! `(primcall struct-vtable ,(subst struct))
-                        vtable))))
           (('primcall 'struct-set! struct n val)
            (add-def! `(primcall struct-ref ,struct ,n) val))
           (('primcall 'struct-set!/immediate struct n val)

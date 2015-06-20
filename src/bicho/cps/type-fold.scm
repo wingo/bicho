@@ -70,7 +70,6 @@
 ;; All the cases that are in compile-bytecode.
 (define-unary-type-predicate-folder pair? &pair)
 (define-unary-type-predicate-folder null? &null)
-(define-unary-type-predicate-folder nil? &nil)
 (define-unary-type-predicate-folder symbol? &symbol)
 (define-unary-type-predicate-folder variable? &box)
 (define-unary-type-predicate-folder vector? &vector)

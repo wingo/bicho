@@ -260,7 +260,6 @@ is or might be a read or a write to the same location as A."
   ((equal? . _))
   ((pair? arg))
   ((null? arg))
-  ((nil? arg ))
   ((symbol? arg))
   ((variable? arg))
   ((vector? arg))
@@ -329,8 +328,6 @@ is or might be a read or a write to the same location as A."
 (define (write-struct-field n constants)
   (logior &write (struct-field n constants)))
 (define-primitive-effects* constants
-  ((allocate-struct vt n)          (&allocate &struct)         &type-check)
-  ((allocate-struct/immediate v n) (&allocate &struct)         &type-check)
   ((make-struct vt ntail . _)      (&allocate &struct)         &type-check)
   ((make-struct/no-tail vt . _)    (&allocate &struct)         &type-check)
   ((struct-ref s n)                (read-struct-field n constants) &type-check)

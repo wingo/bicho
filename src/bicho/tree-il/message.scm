@@ -23,7 +23,7 @@
 ;;;
 ;;; Code:
 
-(define-module (system base message)
+(define-module (bicho tree-il message)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)

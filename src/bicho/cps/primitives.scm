@@ -68,7 +68,6 @@
 
 (define *branching-primcall-arities*
   '((null? . (1 . 1))
-    (nil? . (1 . 1))
     (pair? . (1 . 1))
     (struct? . (1 . 1))
     (string? . (1 . 1))
