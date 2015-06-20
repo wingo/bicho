@@ -14,6 +14,7 @@ SOURCES =					\
   bicho/cps/intmap.scm				\
   bicho/cps/intset.scm				\
   bicho/cps/optimize.scm			\
+  bicho/cps/primitives.scm			\
   bicho/cps/prune-bailouts.scm			\
   bicho/cps/prune-top-level-scopes.scm		\
   bicho/cps/renumber.scm			\
