@@ -1,1 +1,15 @@
 *~
+*.go
+/INSTALL
+/Makefile
+/Makefile.in
+/aclocal.m4
+/autom4te.cache/
+/build-aux/install-sh
+/build-aux/missing
+/config.log
+/config.status
+/configure
+/env
+/src/Makefile
+/src/Makefile.in
