@@ -22,6 +22,7 @@
 (define-module (bicho expand)
   #:use-module (ice-9 match)
   #:use-module (bicho tree-il)
+  #:use-module (bicho eval)
   #:export ((macroexpand . expand)))
 
 ;;; Portable implementation of syntax-case
@@ -89,10 +90,6 @@
 ;;;      expanded version of datum in a core language that includes no
 ;;;      syntactic abstractions.  The core language includes begin,
 ;;;      define, if, lambda, letrec, quote, and set!.
-;;;   (eval-when situations expr ...)
-;;;      conditionally evaluates expr ... at compile-time or run-time
-;;;      depending upon situations (see the Chez Scheme System Manual,
-;;;      Revision 3, for a complete description)
 ;;;   (syntax-violation who message form [subform])
 ;;;      used to report errors found during expansion
 ;;;   ($sc-dispatch e p)
@@ -216,10 +213,12 @@
 (define-syntax fx< (identifier-syntax <))
 
 (define (top-level-eval-hook x)
-  (primitive-eval x))
+  (pk 'top-level-eval x)
+  (eval x))
 
 (define (local-eval-hook x)
-  (primitive-eval x))
+  (pk 'local-eval x)
+  (eval x))
 
 (define (put-global-definition-hook symbol type val)
   (hashq-set! *compile-environment* symbol (cons type val)))
@@ -378,7 +377,6 @@
 ;;               (define-syntax)                 define-syntax
 ;;               (define-syntax-parameter)       define-syntax-parameter
 ;;               (local-syntax . rec?)           let-syntax/letrec-syntax
-;;               (eval-when)                     eval-when
 ;;               (syntax . (<var> . <level>))    pattern variables
 ;;               (global)                        assumed global variable
 ;;               (lexical . <var>)               lexical variables
@@ -388,10 +386,10 @@
 ;; <var>     ::= variable returned by build-lexical-var
 
 ;; a macro is a user-defined syntactic-form.  a core is a
-;; system-defined syntactic form.  begin, define, define-syntax,
-;; define-syntax-parameter, and eval-when are treated specially
-;; since they are sensitive to whether the form is at top-level and
-;; (except for eval-when) can denote valid internal definitions.
+;; system-defined syntactic form.  begin, define, define-syntax, and
+;; define-syntax-parameter are treated specially since they are
+;; sensitive to whether the form is at top-level and can denote valid
+;; internal definitions.
 
 ;; a pattern variable is a variable introduced by syntax-case and can
 ;; be referenced only within a syntax form.
@@ -837,7 +835,7 @@
 ;; expansions of all normal definitions and expressions in the
 ;; sequence.
 ;;
-(define (expand-top-sequence body r w s m esew)
+(define (expand-top-sequence body r w s m)
   (let* ((r (cons '("placeholder" . (placeholder)) r))
 	 (ribcage (make-empty-ribcage))
 	 (w (make-wrap (wrap-marks w) (cons ribcage (wrap-subst w)))))
@@ -850,41 +848,22 @@
     (define (fresh-derived-name id orig-form)
       (gensym
        (string-append (symbol->string (syntax-object-expression id)) "-")))
-    (define (parse body r w s m esew)
+    (define (parse body r w s m)
       (let lp ((body body) (exps '()))
 	(if (null? body)
 	    exps
 	    (lp (cdr body)
-		(append (parse1 (car body) r w s m esew)
+		(append (parse1 (car body) r w s m)
 			exps)))))
-    (define (parse1 x r w s m esew)
+    (define (parse1 x r w s m)
       (call-with-values
 	  (lambda ()
 	    (syntax-type x r w (source-annotation x) ribcage #f))
 	(lambda (type value form e w s)
 	  (case type
 	    ((define-form)
-	     (let* ((id (wrap value w))
-		    (label (gen-label))
-		    (var (if (macro-introduced-identifier? id)
-			     (fresh-derived-name id x)
-			     (syntax-object-expression id))))
-	       (record-definition! id var)
-	       (list
-		(if (eq? m 'c&e)
-		    (let ((x (build-global-definition s var (expand e r w))))
-		      (top-level-eval-hook x)
-		      (lambda () x))
-		    (call-with-values
-			(lambda () (resolve-identifier id empty-wrap r #t))
-		      (lambda (type* value*)
-			;; If the identifier to be bound is currently bound to a
-			;; macro, then immediately discard that binding.
-			(when (eq? type* 'macro)
-			  (top-level-eval-hook
-			   (build-global-definition s var (build-void s))))
-			(lambda ()
-			  (build-global-definition s var (expand e r w)))))))))
+	     (syntax-violation 'define
+			       "toplevel definitions not allowed in bicho" e))
 	    ((define-syntax-form define-syntax-parameter-form)
 	     (let* ((id (wrap value w))
 		    (label (gen-label))
@@ -892,71 +871,17 @@
 			     (fresh-derived-name id x)
 			     (syntax-object-expression id))))
 	       (record-definition! id var)
-	       (case m
-		 ((c)
-		  (cond
-		   ((memq 'compile esew)
-		    (let ((e (expand-install-global var type (expand e r w))))
-		      (top-level-eval-hook e)
-		      (if (memq 'load esew)
-			  (list (lambda () e))
-			  '())))
-		   ((memq 'load esew)
-		    (list (lambda ()
-			    (expand-install-global var type (expand e r w)))))
-		   (else '())))
-		 ((c&e)
-		  (let ((e (expand-install-global var type (expand e r w))))
-		    (top-level-eval-hook e)
-		    (list (lambda () e))))
-		 (else
-		  (if (memq 'eval esew)
-		      (top-level-eval-hook
-		       (expand-install-global var type (expand e r w))))
-		  '()))))
+	       (top-level-eval-hook
+		(expand-install-global var type (expand e r w)))
+	       '()))
 	    ((begin-form)
 	     (syntax-case e ()
 	       ((_ e1 ...)
-		(parse #'(e1 ...) r w s m esew))))
+		(parse #'(e1 ...) r w s m))))
 	    ((local-syntax-form)
 	     (expand-local-syntax value e r w s
 				  (lambda (forms r w s)
-				    (parse forms r w s m esew))))
-	    ((eval-when-form)
-	     (syntax-case e ()
-	       ((_ (x ...) e1 e2 ...)
-		(let ((when-list (parse-when-list e #'(x ...)))
-		      (body #'(e1 e2 ...)))
-		  (define (recurse m esew)
-		    (parse body r w s m esew))
-		  (cond
-		   ((eq? m 'e)
-		    (if (memq 'eval when-list)
-			(recurse (if (memq 'expand when-list) 'c&e 'e)
-				 '(eval))
-			(begin
-			  (if (memq 'expand when-list)
-			      (top-level-eval-hook
-			       (expand-top-sequence body r w s 'e '(eval))
-			      ))
-			  '())))
-		   ((memq 'load when-list)
-		    (if (or (memq 'compile when-list)
-			    (memq 'expand when-list)
-			    (and (eq? m 'c&e) (memq 'eval when-list)))
-			(recurse 'c&e '(compile load))
-			(if (memq m '(c c&e))
-			    (recurse 'c '(load))
-			    '())))
-		   ((or (memq 'compile when-list)
-			(memq 'expand when-list)
-			(and (eq? m 'c&e) (memq 'eval when-list)))
-		    (top-level-eval-hook
-		     (expand-top-sequence body r w s 'e '(eval))
-		    )
-		    '())
-		   (else
-		    '()))))))
+				    (parse forms r w s m))))
 	    (else
 	     (list
 	      (if (eq? m 'c&e)
@@ -966,7 +891,7 @@
 		  (lambda ()
 		    (expand-expr type value form e r w s)))))))))
     (let ((exps (map (lambda (x) (x))
-		     (reverse (parse body r w s m esew)))))
+		     (reverse (parse body r w s m)))))
       (if (null? exps)
 	  (build-void s)
 	  (build-sequence s exps)))))
@@ -986,21 +911,6 @@
 	      (build-data no-source 'macro)
 	      e)))))
 
-(define (parse-when-list e when-list)
-  ;; `when-list' is syntax'd version of list of situations.  We
-  ;; could match these keywords lexically, via free-id=?, but then
-  ;; we twingle the definition of eval-when to the bindings of
-  ;; eval, load, expand, and compile, which is totally unintended.
-  ;; So do a symbolic match instead.
-  (let ((result (strip when-list empty-wrap)))
-    (let lp ((l result))
-      (if (null? l)
-	  result
-	  (if (memq (car l) '(compile load eval expand))
-	      (lp (cdr l))
-	      (syntax-violation 'eval-when "invalid situation" e
-				(car l)))))))
-
 ;; syntax-type returns six values: type, value, form, e, w, and s.
 ;; The first two are described in the table below.
 ;;
@@ -1015,7 +925,6 @@
 ;;    define-syntax          none          define-syntax keyword
 ;;    define-syntax-parameter none         define-syntax-parameter keyword
 ;;    local-syntax           rec?          letrec-syntax/let-syntax keyword
-;;    eval-when              none          eval-when keyword
 ;;    syntax                 level         pattern variable
 ;;    displaced-lexical      none          displaced lexical identifier
 ;;    lexical-call           name          call to lexical variable
@@ -1027,7 +936,6 @@
 ;;    define-syntax-form     id            syntax definition
 ;;    define-syntax-parameter-form id      syntax parameter definition
 ;;    local-syntax-form      rec?          syntax definition
-;;    eval-when-form         none          eval-when form
 ;;    constant               none          self-evaluating datum
 ;;    other                  none          anything else
 ;;
@@ -1075,8 +983,6 @@
 	     (values 'local-syntax-form fval e e w s))
 	    ((begin)
 	     (values 'begin-form #f e e w s))
-	    ((eval-when)
-	     (values 'eval-when-form #f e e w s))
 	    ((define)
 	     (syntax-case e ()
 	       ((_ name val)
@@ -1166,13 +1072,6 @@
 			  (source-wrap e w s)))))
     ((local-syntax-form)
      (expand-local-syntax value e r w s expand-sequence))
-    ((eval-when-form)
-     (syntax-case e ()
-       ((_ (x ...) e1 e2 ...)
-	(let ((when-list (parse-when-list e #'(x ...))))
-	  (if (memq 'eval when-list)
-	      (expand-sequence #'(e1 e2 ...) r w s)
-	      (expand-void))))))
     ((define-form define-syntax-form define-syntax-parameter-form)
      (syntax-violation #f "definition in expression context, where definitions are not allowed,"
 		       (source-wrap form w s)))
@@ -2122,8 +2021,6 @@
 (global-extend 'define-syntax 'define-syntax '())
 (global-extend 'define-syntax-parameter 'define-syntax-parameter '())
 
-(global-extend 'eval-when 'eval-when '())
-
 (global-extend
  'core 'syntax-case
  (let ()
@@ -2296,16 +2193,11 @@
 	      (syntax-violation 'syntax-case "invalid literals list" e))))))))
 
 ;; The portable macroexpand seeds expand-top's mode m with 'e (for
-;; evaluating) and esew (which stands for "eval syntax expanders
-;; when") with '(eval).  In Chez Scheme, m is set to 'c instead of e
-;; if we are compiling a file, and esew is set to
-;; (eval-syntactic-expanders-when), which defaults to the list
-;; '(compile load eval).  This means that, by default, top-level
-;; syntactic definitions are evaluated immediately after they are
-;; expanded, and the expanded definitions are also residualized into
-;; the object file if we are compiling a file.
-(define* (macroexpand x #:optional (m 'e) (esew '(eval)))
-  (expand-top-sequence (list x) null-env top-wrap #f m esew))
+;; evaluating).  In Chez Scheme, m is set to 'c instead of e if we are
+;; compiling a file.  Top-level syntactic definitions are evaluated
+;; immediately after they are expanded.
+(define* (macroexpand x #:optional (m 'e))
+  (expand-top-sequence (list x) null-env top-wrap #f m))
 
 (define (identifier? x)
   (nonsymbol-id? x))
