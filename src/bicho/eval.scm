@@ -23,6 +23,9 @@
   #:use-module (bicho tree-il)
   #:export (eval))
 
+(define (call-primitive name args)
+  (apply (module-ref the-scm-module name) args))
+
 (define (eval exp env)
   (match exp
     (($ <void> src)
@@ -63,6 +66,8 @@
 	 (case-lambda)))
 
     (($ <lambda-case> src req opt rest kw inits gensyms body alternate)
+     (define (parse-args env args)
+       (parse-req env req gensyms args))
      (define (parse-req env req vars args)
        (match (vector req vars args)
 	 (#((_ . req) (var . vars) (arg . args))
