@@ -835,7 +835,7 @@
 ;; expansions of all normal definitions and expressions in the
 ;; sequence.
 ;;
-(define (expand-top-sequence body r w s m)
+(define (expand-top-sequence body r w s)
   (let* ((r (cons '("placeholder" . (placeholder)) r))
 	 (ribcage (make-empty-ribcage))
 	 (w (make-wrap (wrap-marks w) (cons ribcage (wrap-subst w)))))
@@ -848,14 +848,14 @@
     (define (fresh-derived-name id orig-form)
       (gensym
        (string-append (symbol->string (syntax-object-expression id)) "-")))
-    (define (parse body r w s m)
+    (define (parse body r w s)
       (let lp ((body body) (exps '()))
 	(if (null? body)
 	    exps
 	    (lp (cdr body)
-		(append (parse1 (car body) r w s m)
+		(append (parse1 (car body) r w s)
 			exps)))))
-    (define (parse1 x r w s m)
+    (define (parse1 x r w s)
       (call-with-values
 	  (lambda ()
 	    (syntax-type x r w (source-annotation x) ribcage #f))
@@ -877,21 +877,15 @@
 	    ((begin-form)
 	     (syntax-case e ()
 	       ((_ e1 ...)
-		(parse #'(e1 ...) r w s m))))
+		(parse #'(e1 ...) r w s))))
 	    ((local-syntax-form)
-	     (expand-local-syntax value e r w s
-				  (lambda (forms r w s)
-				    (parse forms r w s m))))
+	     (expand-local-syntax value e r w s parse))
 	    (else
 	     (list
-	      (if (eq? m 'c&e)
-		  (let ((x (expand-expr type value form e r w s)))
-		    (top-level-eval-hook x)
-		    (lambda () x))
-		  (lambda ()
-		    (expand-expr type value form e r w s)))))))))
+	      (lambda ()
+		(expand-expr type value form e r w s))))))))
     (let ((exps (map (lambda (x) (x))
-		     (reverse (parse body r w s m)))))
+		     (reverse (parse body r w s)))))
       (if (null? exps)
 	  (build-void s)
 	  (build-sequence s exps)))))
@@ -2192,12 +2186,8 @@
 			    (list (expand #'val r empty-wrap))))
 	      (syntax-violation 'syntax-case "invalid literals list" e))))))))
 
-;; The portable macroexpand seeds expand-top's mode m with 'e (for
-;; evaluating).  In Chez Scheme, m is set to 'c instead of e if we are
-;; compiling a file.  Top-level syntactic definitions are evaluated
-;; immediately after they are expanded.
-(define* (macroexpand x #:optional (m 'e))
-  (expand-top-sequence (list x) null-env top-wrap #f m))
+(define (macroexpand x)
+  (expand-top-sequence (list x) null-env top-wrap #f))
 
 (define (identifier? x)
   (nonsymbol-id? x))
