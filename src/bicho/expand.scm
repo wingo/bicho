@@ -864,15 +864,25 @@
 	    ((define-form)
 	     (syntax-violation 'define
 			       "toplevel definitions not allowed in bicho" e))
-	    ((define-syntax-form define-syntax-parameter-form)
+	    ((define-syntax-form)
 	     (let* ((id (wrap value w))
 		    (label (gen-label))
 		    (var (if (macro-introduced-identifier? id)
 			     (fresh-derived-name id x)
 			     (syntax-object-expression id))))
 	       (record-definition! id var)
-	       (top-level-eval-hook
-		(expand-install-global var type (expand e r w)))
+	       (let ((val (top-level-eval-hook (expand e r w))))
+		 (hashq-set! *compile-environment* var (cons type val)))
+	       '()))
+	    ((define-syntax-parameter-form)
+	     (let* ((id (wrap value w))
+		    (label (gen-label))
+		    (var (if (macro-introduced-identifier? id)
+			     (fresh-derived-name id x)
+			     (syntax-object-expression id))))
+	       (record-definition! id var)
+	       (let ((val (list (top-level-eval-hook (expand e r w)))))
+		 (hashq-set! *compile-environment* var (cons type val)))
 	       '()))
 	    ((begin-form)
 	     (syntax-case e ()
@@ -889,21 +899,6 @@
       (if (null? exps)
 	  (build-void s)
 	  (build-sequence s exps)))))
-
-(define (expand-install-global name type e)
-  (build-global-definition
-   no-source
-   name
-   (build-primcall
-    no-source
-    'make-syntax-transformer
-    (if (eq? type 'define-syntax-parameter-form)
-	(list (build-data no-source name)
-	      (build-data no-source 'syntax-parameter)
-	      (build-primcall no-source 'list (list e)))
-	(list (build-data no-source name)
-	      (build-data no-source 'macro)
-	      e)))))
 
 ;; syntax-type returns six values: type, value, form, e, w, and s.
 ;; The first two are described in the table below.
