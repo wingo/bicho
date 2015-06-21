@@ -21,12 +21,12 @@
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (bicho tree-il)
-  #:export (eval))
+  #:replace (eval))
 
 (define (call-primitive name args)
   (apply (module-ref the-scm-module name) args))
 
-(define (eval exp env)
+(define* (eval exp #:optional (env '()))
   (match exp
     (($ <void> src)
      *unspecified*)
