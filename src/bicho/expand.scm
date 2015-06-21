@@ -19,7 +19,7 @@
 ;;;; 
 
 
-(define-module (bicho scheme expand)
+(define-module (bicho expand)
   #:use-module (ice-9 match)
   #:use-module (bicho tree-il)
   #:export ((macroexpand . expand)))

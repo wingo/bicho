@@ -27,7 +27,8 @@ SOURCES =					\
   bicho/cps/utils.scm				\
   bicho/cps/verify.scm				\
   bicho/cps/with-cps.scm			\
-  bicho/scheme/expand.scm			\
+  bicho/eval.scm				\
+  bicho/expand.scm				\
   bicho/tree-il.scm				\
   bicho/tree-il/analyze.scm			\
   bicho/tree-il/canonicalize.scm		\
