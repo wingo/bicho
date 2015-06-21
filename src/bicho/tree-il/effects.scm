@@ -287,13 +287,6 @@ of an expression."
           (($ <toplevel-ref>)
            (logior &toplevel
                    (cause &type-check)))
-          (($ <module-ref>)
-           (logior &toplevel
-                   (cause &type-check)))
-          (($ <module-set> _ mod name public? exp)
-           (logior (cause &toplevel)
-                   (cause &type-check)
-                   (compute-effects exp)))
           (($ <toplevel-define> _ name exp)
            (logior (cause &toplevel)
                    (compute-effects exp)))
@@ -512,22 +505,6 @@ of an expression."
           ;; Bailout primitives.
           (($ <primcall> _ (? bailout-primitive? name) args)
            (logior (accumulate-effects args)
-                   (cause &definite-bailout)
-                   (cause &possible-bailout)))
-          (($ <call> _
-              (and proc
-                   ($ <module-ref> _ mod name public?)
-                   (? (lambda (_)
-                        (false-if-exception
-                         (procedure-property
-                          (module-ref (if public?
-                                          (resolve-interface mod)
-                                          (resolve-module mod))
-                                      name)
-                          'definite-bailout?)))))
-              args)
-           (logior (compute-effects proc)
-                   (accumulate-effects args)
                    (cause &definite-bailout)
                    (cause &possible-bailout)))
 

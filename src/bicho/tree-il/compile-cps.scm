@@ -105,19 +105,6 @@
                             (bound? bound?))
          ($ (lookup name bound? kbox))))))
 
-(define (module-box cps src module name public? bound? val-proc)
-  (with-cps cps
-    (letv box)
-    (let$ body (val-proc box))
-    (letk kbox ($kargs ('box) (box) ,body))
-    ($ (with-cps-constants ((module module)
-                            (name name)
-                            (public? public?)
-                            (bound? bound?))
-         (build-term ($continue kbox src
-                       ($primcall 'cached-module-box
-                                  (module name public? bound?))))))))
-
 (define (capture-toplevel-scope cps src scope-id k)
   (with-cps cps
     (letv module)
@@ -448,25 +435,6 @@
                                (convert cps exp k subst)))))
                (letk kscope ($kargs () () ,body))
                ($ (capture-toplevel-scope fun-src scope-id kscope)))))))
-
-    (($ <module-ref> src mod name public?)
-     (module-box
-      cps src mod name public? #t
-      (lambda (cps box)
-        (with-cps cps
-          (let$ k (adapt-arity k src 1))
-          (build-term ($continue k src ($primcall 'box-ref (box))))))))
-
-    (($ <module-set> src mod name public? exp)
-     (convert-arg cps exp
-       (lambda (val)
-         (module-box
-          cps src mod name public? #t
-          (lambda (cps box)
-            (with-cps cps
-              (let$ k (adapt-arity k src 0))
-              (build-term
-                ($continue k src ($primcall 'box-set! (box val))))))))))
 
     (($ <toplevel-ref> src name)
      (toplevel-box

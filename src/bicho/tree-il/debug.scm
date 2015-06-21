@@ -174,12 +174,6 @@
        (cond
         ((not (symbol? name))
          (error "name should be a symbol" name))))
-      (($ <module-ref> src mod name public?)
-       (cond
-        ((not (and (list? mod) (and-map symbol? mod)))
-         (error "module name should be list of symbols" exp))
-        ((not (symbol? name))
-         (error "name should be symbol" exp))))
       (($ <primitive-ref> src name)
        (cond
         ((not (symbol? name))
@@ -194,14 +188,6 @@
        (cond
         ((not (symbol? name))
          (error "name should be a symbol" name))
-        (else
-         (visit exp env))))
-      (($ <module-set> src mod name public? exp)
-       (cond
-        ((not (and (list? mod) (and-map symbol? mod)))
-         (error "module name should be list of symbols" exp))
-        ((not (symbol? name))
-         (error "name should be symbol" exp))
         (else
          (visit exp env))))
       (($ <conditional> src condition subsequent alternate)

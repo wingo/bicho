@@ -96,7 +96,6 @@
     (($ <void>) #t)
     (($ <lexical-ref>) #t)
     (($ <primitive-ref>) #t)
-    (($ <module-ref>) #t)
     (($ <toplevel-ref>) #t)
     (($ <primcall> _ (? singly-valued-primitive?)) #t)
     (($ <primcall> _ 'values (val)) #t)
@@ -554,12 +553,10 @@ top-level bindings from ENV and return the resulting expression."
              ($ <lambda>)
              ($ <lexical-ref>)
              ($ <toplevel-ref>)
-             ($ <module-ref>)
              ($ <primitive-ref>)
              ($ <lexical-set>)          ; FIXME: these set! expressions
              ($ <toplevel-set>)         ; could return zero values in
              ($ <toplevel-define>)      ; the future
-             ($ <module-set>)           ;
              ($ <primcall> src (? singly-valued-primitive?)))
          (and (<= nmin 1) (or (not nmax) (>= nmax 1))
               (make-call src (make-lambda #f '() consumer) (list exp))))
@@ -1036,19 +1033,6 @@ top-level bindings from ENV and return the resulting expression."
       (($ <toplevel-ref>)
        ;; todo: open private local bindings.
        exp)
-      (($ <module-ref> src module (? effect-free-primitive? name) #f)
-       (let ((module (false-if-exception
-                      (resolve-module module #:ensure #f))))
-         (if (module? module)
-             (let ((var (module-variable module name)))
-               (if (eq? var (module-variable the-scm-module name))
-                   (make-primitive-ref src name)
-                   exp))
-             exp)))
-      (($ <module-ref>)
-       exp)
-      (($ <module-set> src mod name public? exp)
-       (make-module-set src mod name public? (for-value exp)))
       (($ <toplevel-define> src name exp)
        (make-toplevel-define src name (for-value exp)))
       (($ <toplevel-set> src name exp)

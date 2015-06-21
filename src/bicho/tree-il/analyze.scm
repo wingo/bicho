@@ -215,9 +215,6 @@
        (hashq-set! labels gensym #f)
        (lset-adjoin eq? (step exp) gensym))
       
-      ((<module-set> exp)
-       (step exp))
-      
       ((<toplevel-set> exp)
        (step exp))
       
@@ -364,9 +361,6 @@
        (max (recur test) (recur consequent) (recur alternate)))
 
       ((<lexical-set> exp)
-       (recur exp))
-      
-      ((<module-set> exp)
        (recur exp))
       
       ((<toplevel-set> exp)
@@ -837,8 +831,6 @@ given `tree-il' element."
       (_ #f)))
 
   (match proc
-    (($ <module-ref> _ '(oop goops) 'toplevel-define! #f)
-     (toplevel-define-arg args))
     (($ <toplevel-ref> _ 'toplevel-define!)
      ;; This may be the result of expanding one of the GOOPS macros within
      ;; `oop/goops.scm'.
@@ -1333,14 +1325,6 @@ resort, return #t when EXP refers to the global variable SPECIAL-NAME."
      (let ((var (module-variable env name)))
        (and var (variable-bound? var)
             (eq? (variable-ref var) proc))))
-    (($ <module-ref> _ _ (? special?))
-     #t)
-    (($ <module-ref> _ module name public?)
-     (let* ((mod (if public?
-                     (false-if-exception (resolve-interface module))
-                     (resolve-module module #:ensure #f)))
-            (var (and mod (module-variable mod name))))
-       (and var (variable-bound? var) (eq? (variable-ref var) proc))))
     (($ <lexical-ref> _ (? special?))
      #t)
     (_ #f)))
@@ -1451,14 +1435,6 @@ resort, return #t when EXP refers to the global variable SPECIAL-NAME."
                                                  (or src (find pair? locs))))
                   (eq? proc (@ (ice-9 format) format)))
               (check-format-args args (or src (find pair? locs))))))
-       (($ <call> src ($ <module-ref> _ '(ice-9 format) 'format) args)
-        (check-format-args args (or src (find pair? locs))))
-       (($ <call> src ($ <module-ref> _ '(guile)
-                         (or 'format 'simple-format))
-           args)
-        (and (check-simple-format-args args
-                                       (or src (find pair? locs)))
-             (check-format-args args (or src (find pair? locs)))))
        (_ #t))
      #t)
 

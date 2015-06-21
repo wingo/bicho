@@ -28,8 +28,6 @@
             <primitive-ref> primitive-ref? make-primitive-ref primitive-ref-src primitive-ref-name
             <lexical-ref> lexical-ref? make-lexical-ref lexical-ref-src lexical-ref-name lexical-ref-gensym
             <lexical-set> lexical-set? make-lexical-set lexical-set-src lexical-set-name lexical-set-gensym lexical-set-exp
-            <module-ref> module-ref? make-module-ref module-ref-src module-ref-mod module-ref-name module-ref-public?
-            <module-set> module-set? make-module-set module-set-src module-set-mod module-set-name module-set-public? module-set-exp
             <toplevel-ref> toplevel-ref? make-toplevel-ref toplevel-ref-src toplevel-ref-name
             <toplevel-set> toplevel-set? make-toplevel-set toplevel-set-src toplevel-set-name toplevel-set-exp
             <toplevel-define> toplevel-define? make-toplevel-define toplevel-define-src toplevel-define-name toplevel-define-exp
@@ -72,8 +70,6 @@
   (<primitive-ref> name)
   (<lexical-ref> name gensym)
   (<lexical-set> name gensym exp)
-  (<module-ref> mod name public?)
-  (<module-set> mod name public? exp)
   (<toplevel-ref> name)
   (<toplevel-set> name exp)
   (<toplevel-define> name exp)
@@ -135,18 +131,6 @@
 
      (('set! ('lexical (and name (? symbol?)) (and sym (? symbol?))) exp)
       (make-lexical-set loc name sym (retrans exp)))
-
-     (('@ ((and mod (? symbol?)) ...) (and name (? symbol?)))
-      (make-module-ref loc mod name #t))
-
-     (('set! ('@ ((and mod (? symbol?)) ...) (and name (? symbol?))) exp)
-      (make-module-set loc mod name #t (retrans exp)))
-
-     (('@@ ((and mod (? symbol?)) ...) (and name (? symbol?)))
-      (make-module-ref loc mod name #f))
-
-     (('set! ('@@ ((and mod (? symbol?)) ...) (and name (? symbol?))) exp)
-      (make-module-set loc mod name #f (retrans exp)))
 
      (('toplevel (and name (? symbol?)))
       (make-toplevel-ref loc name))
@@ -232,12 +216,6 @@
     (($ <lexical-set> src name gensym exp)
      `(set! (lexical ,name ,gensym) ,(unparse-tree-il exp)))
 
-    (($ <module-ref> src mod name public?)
-     `(,(if public? '@ '@@) ,mod ,name))
-
-    (($ <module-set> src mod name public? exp)
-     `(set! (,(if public? '@ '@@) ,mod ,name) ,(unparse-tree-il exp)))
-
     (($ <toplevel-ref> src name)
      `(toplevel ,name))
 
@@ -305,8 +283,6 @@
            ((seed ...)
             (match tree
               (($ <lexical-set> src name gensym exp)
-               (foldts exp seed ...))
-              (($ <module-set> src mod name public? exp)
                (foldts exp seed ...))
               (($ <toplevel-set> src name exp)
                (foldts exp seed ...))
@@ -385,7 +361,6 @@ This is an implementation of `foldts' as described by Andy Wingo in
               ($ <const>)
               ($ <primitive-ref>)
               ($ <lexical-ref>)
-              ($ <module-ref>)
               ($ <toplevel-ref>))
           x)
 
@@ -394,12 +369,6 @@ This is an implementation of `foldts' as described by Andy Wingo in
             (if (eq? exp exp*)
                 x
                 (make-lexical-set src name gensym exp*))))
-
-         (($ <module-set> src mod name public? exp)
-          (let ((exp* (lp exp)))
-            (if (eq? exp exp*)
-                x
-                (make-module-set src mod name public? exp*))))
 
          (($ <toplevel-set> src name exp)
           (let ((exp* (lp exp)))

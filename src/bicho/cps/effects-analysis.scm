@@ -376,7 +376,6 @@ is or might be a read or a write to the same location as A."
   ((cache-current-module! m scope) (&write-object &box))
   ((resolve name bound?)           (&read-object &module)      &type-check)
   ((cached-toplevel-box scope name bound?)                     &type-check)
-  ((cached-module-box mod name public? bound?)                 &type-check)
   ((define! name val)              (&read-object &module) (&write-object &box)))
 
 ;; Numbers.

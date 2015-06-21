@@ -63,8 +63,7 @@
 
 (define *macro-instruction-arities*
   '((cache-current-module! . (0 . 2))
-    (cached-toplevel-box . (1 . 3))
-    (cached-module-box . (1 . 4))))
+    (cached-toplevel-box . (1 . 3))))
 
 (define *branching-primcall-arities*
   '((null? . (1 . 1))
