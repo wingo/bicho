@@ -650,31 +650,12 @@ given `tree-il' element."
 
 ;; <toplevel-info> records are used during tree traversal in search of
 ;; possibly unbound variable.  They contain a list of references to
-;; potentially unbound top-level variables, and a list of the top-level
-;; defines that have been encountered.
+;; potentially unbound top-level variables.
 (define-record-type <toplevel-info>
-  (make-toplevel-info refs defs)
+  (make-toplevel-info refs)
   toplevel-info?
   (refs  toplevel-info-refs)  ;; ((VARIABLE-NAME . LOCATION) ...)
-  (defs  toplevel-info-defs)) ;; (VARIABLE-NAME ...)
-
-(define (goops-toplevel-definition proc args env)
-  ;; If call of PROC to ARGS is a GOOPS top-level definition, return
-  ;; the name of the variable being defined; otherwise return #f.  This
-  ;; assumes knowledge of the current implementation of `define-class' et al.
-  (define (toplevel-define-arg args)
-    (match args
-      ((($ <const> _ (and (? symbol?) exp)) _)
-       exp)
-      (_ #f)))
-
-  (match proc
-    (($ <toplevel-ref> _ 'toplevel-define!)
-     ;; This may be the result of expanding one of the GOOPS macros within
-     ;; `oop/goops.scm'.
-     (and (eq? env (resolve-module '(oop goops)))
-          (toplevel-define-arg args)))
-    (_ #f)))
+  )
 
 (define unbound-variable-analysis
   ;; Report possibly unbound variables in the given tree.
@@ -682,31 +663,13 @@ given `tree-il' element."
    (lambda (x info env locs)
      ;; Going down into X.
      (let* ((refs (toplevel-info-refs info))
-            (defs (toplevel-info-defs info))
             (src  (tree-il-src x)))
-       (define (bound? name)
-         (or (and (module? env)
-                  (module-variable env name))
-             (vhash-assq name defs)))
-
        (record-case x
          ((<toplevel-ref> name src)
-          (if (bound? name)
-              info
-              (let ((src (or src (find pair? locs))))
-                (make-toplevel-info (vhash-consq name src refs)
-                                    defs))))
-         ((<call> proc args)
-          ;; Check for a dynamic top-level definition, as is
-          ;; done by code expanded from GOOPS macros.
-          (let ((name (goops-toplevel-definition proc args
-                                                 env)))
-            (if (symbol? name)
-                (make-toplevel-info (vhash-delq name refs)
-                                    (vhash-consq name #t defs))
-                (make-toplevel-info refs defs))))
+          (let ((src (or src (find pair? locs))))
+            (make-toplevel-info (vhash-consq name src refs))))
          (else
-          (make-toplevel-info refs defs)))))
+          (make-toplevel-info refs)))))
 
    (lambda (x info env locs)
      ;; Leaving X's scope.
@@ -720,7 +683,7 @@ given `tree-il' element."
                          (warning 'unbound-variable loc name)))
                      (vlist-reverse (toplevel-info-refs toplevel))))
 
-   (make-toplevel-info vlist-null vlist-null)))
+   (make-toplevel-info vlist-null)))
 
 
 ;;;

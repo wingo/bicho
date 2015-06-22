@@ -375,8 +375,7 @@ is or might be a read or a write to the same location as A."
   ((current-module)                (&read-object &module))
   ((cache-current-module! m scope) (&write-object &box))
   ((resolve name bound?)           (&read-object &module)      &type-check)
-  ((cached-toplevel-box scope name bound?)                     &type-check)
-  ((define! name val)              (&read-object &module) (&write-object &box)))
+  ((cached-toplevel-box scope name bound?)                     &type-check))
 
 ;; Numbers.
 (define-primitive-effects
