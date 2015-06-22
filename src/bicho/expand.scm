@@ -2419,6 +2419,22 @@
 
 (macroexpand
  '(begin
+    (define-syntax and
+      (lambda (x)
+        (syntax-case x ()
+          ((_) #'#t)
+          ((_ x) #'x)
+          ;; Avoid ellipsis, which would lead to quadratic expansion time.
+          ((_ x . y) #'(if x (and . y) #f)))))
+
+    (define-syntax or
+      (lambda (x)
+        (syntax-case x ()
+          ((_) #'#f)
+          ((_ x) #'x)
+          ;; Avoid ellipsis, which would lead to quadratic expansion time.
+          ((_ x . y) #'(let ((t x)) (if t t (or . y)))))))
+
     (define-syntax with-syntax
       (lambda (x)
         (syntax-case x ()
@@ -2580,14 +2596,15 @@
         (define (quasiappend x y)
           (syntax-case y ()
             (("quote" ())
-             (cond
-              ((null? x) #'("quote" ()))
-              ((null? (cdr x)) (car x))
-              (else (with-syntax (((p ...) x)) #'("append" p ...)))))
+             (if (null? x)
+                 #'("quote" ())
+                 (if (null? (cdr x))
+                     (car x)
+                     (with-syntax (((p ...) x)) #'("append" p ...)))))
             (_
-             (cond
-              ((null? x) y)
-              (else (with-syntax (((p ...) x) (y y)) #'("append" p ... y)))))))
+             (if (null? x)
+                 y
+                 (with-syntax (((p ...) x) (y y)) #'("append" p ... y))))))
         (define (quasilist* x y)
           (let f ((x x))
             (if (null? x)
@@ -2630,15 +2647,14 @@
       (lambda (x)
         (define (read-file fn dir k)
           (let* ((p (open-input-file
-                     (cond ((absolute-file-name? fn)
-                            fn)
-                           (dir
-                            (in-vicinity dir fn))
-                           (else
-                            (syntax-violation
-                             'include
-                             "relative file name only allowed when the include form is in a file"
-                             x)))))
+                     (if (absolute-file-name? fn)
+                         fn
+                         (if dir
+                             (in-vicinity dir fn)
+                             (syntax-violation
+                              'include
+                              "relative file name only allowed when the include form is in a file"
+                              x)))))
                  (enc (file-encoding p)))
 
             ;; Choose the input encoding deterministically.
