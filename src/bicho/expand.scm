@@ -92,7 +92,7 @@
 ;;;      define, if, lambda, letrec, quote, and set!.
 ;;;   (syntax-violation who message form [subform])
 ;;;      used to report errors found during expansion
-;;;   ($sc-dispatch e p)
+;;;   ($$sc-dispatch e p)
 ;;;      used by expanded code to handle syntax-case matching
 
 ;;; This file is shipped along with an expanded version of itself,
@@ -213,11 +213,9 @@
 (define-syntax fx< (identifier-syntax <))
 
 (define (top-level-eval-hook x)
-  (pk 'top-level-eval x)
   (eval x))
 
 (define (local-eval-hook x)
-  (pk 'local-eval x)
   (eval x))
 
 (define (put-global-definition-hook symbol type val)
@@ -334,7 +332,7 @@
 (define-syntax-rule (build-lexical-var src id)
   (gensym (string-append (symbol->string id) "-")))
 
-(define-structure (syntax-object expression wrap))
+(define-structure (syntax-object expression wrap module))
 
 (define-syntax no-source (identifier-syntax #f))
 
@@ -804,9 +802,10 @@
    ((and (null? (wrap-marks w)) (null? (wrap-subst w))) x)
    ((syntax-object? x)
     (make-syntax-object (syntax-object-expression x)
-                        (join-wraps w (syntax-object-wrap x))))
+                        (join-wraps w (syntax-object-wrap x))
+                        #f))
    ((null? x) x)
-   (else (make-syntax-object x w))))
+   (else (make-syntax-object x w #f))))
 
 (define (source-wrap x w s)
   (wrap (decorate-source x s) w))
@@ -872,7 +871,7 @@
                              (syntax-object-expression id))))
                (record-definition! id var)
                (let ((val (top-level-eval-hook (expand e r w))))
-                 (put-global-definition-hook var type val))
+                 (put-global-definition-hook var 'macro val))
                '()))
             ((define-syntax-parameter-form)
              (let* ((id (wrap value w))
@@ -882,7 +881,7 @@
                              (syntax-object-expression id))))
                (record-definition! id var)
                (let ((val (list (top-level-eval-hook (expand e r w)))))
-                 (put-global-definition-hook var type val))
+                 (put-global-definition-hook var 'syntax-parameter val))
                '()))
             ((begin-form)
              (syntax-case e ()
@@ -962,7 +961,7 @@
             ((lexical)
              (values 'lexical-call fval e e w s))
             ((global)
-             (values 'global-call (make-syntax-object fval w) e e w s))
+             (values 'global-call (make-syntax-object fval w #f) e e w s))
             ((macro)
              (syntax-type (expand-macro fval e r w s rib)
                           r empty-wrap s rib for-car?))
@@ -1113,14 +1112,16 @@
                    ;; output is from original text
                    (make-syntax-object
                     (syntax-object-expression x)
-                    (make-wrap (cdr ms) (if rib (cons rib (cdr ss)) (cdr ss))))
+                    (make-wrap (cdr ms) (if rib (cons rib (cdr ss)) (cdr ss)))
+                    #f)
                    ;; output introduced by macro
                    (make-syntax-object
                     (decorate-source (syntax-object-expression x) s)
                     (make-wrap (cons m ms)
                                (if rib
                                    (cons rib (cons 'shift ss))
-                                   (cons 'shift ss))))))))
+                                   (cons 'shift ss)))
+                    #f)))))
           
           ((vector? x)
            (let* ((n (vector-length x))
@@ -1319,7 +1320,8 @@
        (call-with-values
            (lambda () (resolve-identifier
                        (make-syntax-object '#{ $sc-ellipsis }#
-                                           (syntax-object-wrap e))
+                                           (syntax-object-wrap e)
+                                           #f)
                        empty-wrap r #f))
          (lambda (type value)
            (if (eq? type 'ellipsis)
@@ -1869,7 +1871,8 @@
       (let ((id (if (symbol? #'dots)
                     '#{ $sc-ellipsis }#
                     (make-syntax-object '#{ $sc-ellipsis }#
-                                        (syntax-object-wrap #'dots)))))
+                                        (syntax-object-wrap #'dots)
+                                        #f))))
         (let ((ids (list id))
               (labels (list (gen-label)))
               (bindings (list (make-binding 'ellipsis (source-wrap #'dots w s)))))
@@ -2189,7 +2192,7 @@
   (nonsymbol-id? x))
 
 (define (datum->syntax id datum)
-  (make-syntax-object datum (syntax-object-wrap id)))
+  (make-syntax-object datum (syntax-object-wrap id) #f))
 
 (define (syntax->datum x)
   ;; accepts any object, since syntax objects may consist partially
@@ -2251,7 +2254,8 @@
            ((ellipsis)
             (values 'ellipsis
                     (make-syntax-object (syntax-object-expression value)
-                                        (anti-mark (syntax-object-wrap value)))))
+                                        (anti-mark (syntax-object-wrap value))
+                                        #f)))
            (else (values 'other #f))))))))
 
 (define (syntax-locally-bound-identifiers id)
@@ -2388,19 +2392,16 @@
                 (match (vector->list e) (vector-ref p 1) w r)))))))
 
     (define (match e p w r)
-      (pk 'match e)
       (cond
        ((not r) #f)
        ((eq? p '_) r)
        ((eq? p 'any) (cons (wrap e w) r))
        ((syntax-object? e)
-        (pk 'syntax-object)
         (match* (syntax-object-expression e)
                 p
                 (join-wraps w (syntax-object-wrap e))
                 r))
        (else
-        (pk 'match*)
         (match* e p w r))))
 
     (lambda (e p)
