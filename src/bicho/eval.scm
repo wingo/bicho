@@ -54,12 +54,6 @@
     (($ <toplevel-ref> src name)
      (variable-ref (module-variable (current-module) name)))
 
-    (($ <toplevel-set> src name exp)
-     (variable-set! (module-variable (current-module) name) (eval exp env)))
-
-    (($ <toplevel-define> src name exp)
-     (module-define! (current-module) name (eval exp env)) )
-
     (($ <lambda> src meta body)
      (if body
 	 (eval body env)

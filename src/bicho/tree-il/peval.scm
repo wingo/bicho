@@ -384,21 +384,6 @@ top-level bindings from ENV and return the resulting expression."
   ;;
   ;; Specialize lambda expressions with invariant arguments.
 
-  (define local-toplevel-env
-    ;; The top-level environment of the module being compiled.
-    (let ()
-      (define (env-folder x env)
-        (match x
-          (($ <toplevel-define> _ name)
-           (vhash-consq name #t env))
-          (($ <seq> _ head tail)
-           (env-folder tail (env-folder head env)))
-          (_ env)))
-      (env-folder exp vlist-null)))
-
-  (define (local-toplevel? name)
-    (vhash-assq name local-toplevel-env))
-
   ;; gensym -> <var>
   ;; renamed-term -> original-term
   ;;
@@ -554,9 +539,7 @@ top-level bindings from ENV and return the resulting expression."
              ($ <lexical-ref>)
              ($ <toplevel-ref>)
              ($ <primitive-ref>)
-             ($ <lexical-set>)          ; FIXME: these set! expressions
-             ($ <toplevel-set>)         ; could return zero values in
-             ($ <toplevel-define>)      ; the future
+             ($ <lexical-set>)
              ($ <primcall> src (? singly-valued-primitive?)))
          (and (<= nmin 1) (or (not nmax) (>= nmax 1))
               (make-call src (make-lambda #f '() consumer) (list exp))))
@@ -1033,10 +1016,6 @@ top-level bindings from ENV and return the resulting expression."
       (($ <toplevel-ref>)
        ;; todo: open private local bindings.
        exp)
-      (($ <toplevel-define> src name exp)
-       (make-toplevel-define src name (for-value exp)))
-      (($ <toplevel-set> src name exp)
-       (make-toplevel-set src name (for-value exp)))
       (($ <primitive-ref>)
        (case ctx
          ((effect) (make-void #f))

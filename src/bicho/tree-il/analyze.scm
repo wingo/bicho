@@ -215,12 +215,6 @@
        (hashq-set! labels gensym #f)
        (lset-adjoin eq? (step exp) gensym))
       
-      ((<toplevel-set> exp)
-       (step exp))
-      
-      ((<toplevel-define> exp)
-       (step exp))
-      
       ((<seq> head tail)
        (lset-union eq? (step head) (step-tail tail)))
       
@@ -361,12 +355,6 @@
        (max (recur test) (recur consequent) (recur alternate)))
 
       ((<lexical-set> exp)
-       (recur exp))
-      
-      ((<toplevel-set> exp)
-       (recur exp))
-      
-      ((<toplevel-define> exp)
        (recur exp))
       
       ((<seq> head tail)
@@ -654,156 +642,6 @@ given `tree-il' element."
    (lambda (result env) #t)
    (make-binding-info vlist-null vlist-null)))
 
-
-;;;
-;;; Unused top-level variable analysis.
-;;;
-
-;; <reference-graph> record top-level definitions that are made, references to
-;; top-level definitions and their context (the top-level definition in which
-;; the reference appears), as well as the current context (the top-level
-;; definition we're currently in).  The second part (`refs' below) is
-;; effectively a graph from which we can determine unused top-level definitions.
-(define-record-type <reference-graph>
-  (make-reference-graph refs defs toplevel-context)
-  reference-graph?
-  (defs             reference-graph-defs) ;; ((NAME . LOC) ...)
-  (refs             reference-graph-refs) ;; ((REF-CONTEXT REF ...) ...)
-  (toplevel-context reference-graph-toplevel-context)) ;; NAME | #f
-
-(define (graph-reachable-nodes root refs reachable)
-  ;; Add to REACHABLE the nodes reachable from ROOT in graph REFS.  REFS is a
-  ;; vhash mapping nodes to the list of their children: for instance,
-  ;; ((A -> (B C)) (B -> (A)) (C -> ())) corresponds to
-  ;;
-  ;;  ,-------.
-  ;;  v       |
-  ;;  A ----> B
-  ;;  |
-  ;;  v
-  ;;  C
-  ;;
-  ;; REACHABLE is a vhash of nodes known to be otherwise reachable.
-
-  (let loop ((root   root)
-             (path   vlist-null)
-             (result reachable))
-    (if (or (vhash-assq root path)
-            (vhash-assq root result))
-        result
-        (let* ((children (or (and=> (vhash-assq root refs) cdr) '()))
-               (path     (vhash-consq root #t path))
-               (result   (fold (lambda (kid result)
-                                 (loop kid path result))
-                               result
-                               children)))
-          (fold (lambda (kid result)
-                  (vhash-consq kid #t result))
-                result
-                children)))))
-
-(define (graph-reachable-nodes* roots refs)
-  ;; Return the list of nodes in REFS reachable from the nodes listed in ROOTS.
-  (vlist-fold (lambda (root+true result)
-                (let* ((root      (car root+true))
-                       (reachable (graph-reachable-nodes root refs result)))
-                  (vhash-consq root #t reachable)))
-              vlist-null
-              roots))
-
-(define (partition* pred vhash)
-  ;; Partition VHASH according to PRED.  Return the two resulting vhashes.
-  (let ((result
-         (vlist-fold (lambda (k+v result)
-                       (let ((k  (car k+v))
-                             (v  (cdr k+v))
-                             (r1 (car result))
-                             (r2 (cdr result)))
-                         (if (pred k)
-                             (cons (vhash-consq k v r1) r2)
-                             (cons r1 (vhash-consq k v r2)))))
-                     (cons vlist-null vlist-null)
-                     vhash)))
-    (values (car result) (cdr result))))
-
-(define unused-toplevel-analysis
-  ;; Report unused top-level definitions that are not exported.
-  (let ((add-ref-from-context
-         (lambda (graph name)
-           ;; Add an edge CTX -> NAME in GRAPH.
-           (let* ((refs     (reference-graph-refs graph))
-                  (defs     (reference-graph-defs graph))
-                  (ctx      (reference-graph-toplevel-context graph))
-                  (ctx-refs (or (and=> (vhash-assq ctx refs) cdr) '())))
-             (make-reference-graph (vhash-consq ctx (cons name ctx-refs) refs)
-                                   defs ctx)))))
-    (define (macro-variable? name env)
-      (and (module? env)
-           (let ((var (module-variable env name)))
-             (and var (variable-bound? var)
-                  (macro? (variable-ref var))))))
-
-    (make-tree-analysis
-     (lambda (x graph env locs)
-       ;; Going down into X.
-       (let ((ctx  (reference-graph-toplevel-context graph))
-             (refs (reference-graph-refs graph))
-             (defs (reference-graph-defs graph)))
-         (record-case x
-           ((<toplevel-ref> name src)
-            (add-ref-from-context graph name))
-           ((<toplevel-define> name src)
-            (let ((refs refs)
-                  (defs (vhash-consq name (or src (find pair? locs))
-                                     defs)))
-              (make-reference-graph refs defs name)))
-           ((<toplevel-set> name src)
-            (add-ref-from-context graph name))
-           (else graph))))
-
-     (lambda (x graph env locs)
-       ;; Leaving X's scope.
-       (record-case x
-         ((<toplevel-define>)
-          (let ((refs (reference-graph-refs graph))
-                (defs (reference-graph-defs graph)))
-            (make-reference-graph refs defs #f)))
-         (else graph)))
-
-     (lambda (graph env)
-       ;; Process the resulting reference graph: determine all private definitions
-       ;; not reachable from any public definition.  Macros
-       ;; (syntax-transformers), which are globally bound, never considered
-       ;; unused since we can't tell whether a macro is actually used; in
-       ;; addition, macros are considered roots of the graph since they may use
-       ;; private bindings.  FIXME: The `make-syntax-transformer' calls don't
-       ;; contain any literal `toplevel-ref' of the global bindings they use so
-       ;; this strategy fails.
-       (define (exported? name)
-         (if (module? env)
-             (module-variable (module-public-interface env) name)
-             #t))
-
-       (let-values (((public-defs private-defs)
-                     (partition* (lambda (name)
-                                   (or (exported? name)
-                                       (macro-variable? name env)))
-                                 (reference-graph-defs graph))))
-         (let* ((roots     (vhash-consq #f #t public-defs))
-                (refs      (reference-graph-refs graph))
-                (reachable (graph-reachable-nodes* roots refs))
-                (unused    (vlist-filter (lambda (name+src)
-                                           (not (vhash-assq (car name+src)
-                                                            reachable)))
-                                         private-defs)))
-           (vlist-for-each (lambda (name+loc)
-                             (let ((name (car name+loc))
-                                   (loc  (cdr name+loc)))
-                               (if (not (gensym? name))
-                                   (warning 'unused-toplevel loc name))))
-                           unused))))
-
-     (make-reference-graph vlist-null vlist-null #f))))
 
 
 ;;;
@@ -858,16 +696,6 @@ given `tree-il' element."
               (let ((src (or src (find pair? locs))))
                 (make-toplevel-info (vhash-consq name src refs)
                                     defs))))
-         ((<toplevel-set> name src)
-          (if (bound? name)
-              (make-toplevel-info refs defs)
-              (let ((src (find pair? locs)))
-                (make-toplevel-info (vhash-consq name src refs)
-                                    defs))))
-         ((<toplevel-define> name)
-          (make-toplevel-info (vhash-delq name refs)
-                              (vhash-consq name #t defs)))
-
          ((<call> proc args)
           ;; Check for a dynamic top-level definition, as is
           ;; done by code expanded from GOOPS macros.
@@ -1038,23 +866,6 @@ given `tree-il' element."
            (toplevel-lambdas (toplevel-lambdas info)))
 
        (record-case x
-         ((<toplevel-define> name exp)
-          (record-case exp
-            ((<lambda> body)
-             (make-arity-info toplevel-calls
-                              lexical-lambdas
-                              (vhash-consq name exp toplevel-lambdas)))
-            ((<toplevel-ref> name)
-             ;; alias for another toplevel
-             (let ((proc (vhash-assq name toplevel-lambdas)))
-               (make-arity-info toplevel-calls
-                                lexical-lambdas
-                                (vhash-consq (toplevel-define-name x)
-                                             (if (pair? proc)
-                                                 (cdr proc)
-                                                 exp)
-                                             toplevel-lambdas))))
-            (else info)))
          ((<let> gensyms vals)
           (fold extend info gensyms vals))
          ((<letrec> gensyms vals)

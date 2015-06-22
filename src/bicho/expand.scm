@@ -255,14 +255,6 @@
 (define (build-global-reference source var)
   (make-toplevel-ref source var))
 
-(define (build-global-assignment source var exp)
-  (maybe-name-value! var exp)
-  (make-toplevel-set source var exp))
-
-(define (build-global-definition source var exp)
-  (maybe-name-value! var exp)
-  (make-toplevel-define source var exp))
-
 (define (build-simple-lambda src req rest vars meta exp)
   (make-lambda src
                meta
@@ -1975,7 +1967,10 @@
              (build-lexical-assignment s (syntax->datum #'id) value
                                        (expand #'val r w)))
             ((global)
-             (build-global-assignment s value (expand #'val r w)))
+             (syntax-violation
+              'set!
+              "assignment to top-level variable not allowed in bicho"
+              (wrap #'id w)))
             ((macro)
              (if (procedure-property value 'variable-transformer)
                  (expand (expand-macro value e r w s #f) r empty-wrap)

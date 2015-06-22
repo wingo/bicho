@@ -29,8 +29,6 @@
             <lexical-ref> lexical-ref? make-lexical-ref lexical-ref-src lexical-ref-name lexical-ref-gensym
             <lexical-set> lexical-set? make-lexical-set lexical-set-src lexical-set-name lexical-set-gensym lexical-set-exp
             <toplevel-ref> toplevel-ref? make-toplevel-ref toplevel-ref-src toplevel-ref-name
-            <toplevel-set> toplevel-set? make-toplevel-set toplevel-set-src toplevel-set-name toplevel-set-exp
-            <toplevel-define> toplevel-define? make-toplevel-define toplevel-define-src toplevel-define-name toplevel-define-exp
             <conditional> conditional? make-conditional conditional-src conditional-test conditional-consequent conditional-alternate
             <call> call? make-call call-src call-proc call-args
             <primcall> primcall? make-primcall primcall-src primcall-name primcall-args
@@ -71,8 +69,6 @@
   (<lexical-ref> name gensym)
   (<lexical-set> name gensym exp)
   (<toplevel-ref> name)
-  (<toplevel-set> name exp)
-  (<toplevel-define> name exp)
   (<conditional> test consequent alternate)
   (<call> proc args)
   (<primcall> name args)
@@ -134,12 +130,6 @@
 
      (('toplevel (and name (? symbol?)))
       (make-toplevel-ref loc name))
-
-     (('set! ('toplevel (and name (? symbol?))) exp)
-      (make-toplevel-set loc name (retrans exp)))
-
-     (('define (and name (? symbol?)) exp)
-      (make-toplevel-define loc name (retrans exp)))
 
      (('lambda meta body)
       (make-lambda loc meta (retrans body)))
@@ -219,12 +209,6 @@
     (($ <toplevel-ref> src name)
      `(toplevel ,name))
 
-    (($ <toplevel-set> src name exp)
-     `(set! (toplevel ,name) ,(unparse-tree-il exp)))
-
-    (($ <toplevel-define> src name exp)
-     `(define ,name ,(unparse-tree-il exp)))
-
     (($ <lambda> src meta body)
      (if body
          `(lambda ,meta ,(unparse-tree-il body))
@@ -283,10 +267,6 @@
            ((seed ...)
             (match tree
               (($ <lexical-set> src name gensym exp)
-               (foldts exp seed ...))
-              (($ <toplevel-set> src name exp)
-               (foldts exp seed ...))
-              (($ <toplevel-define> src name exp)
                (foldts exp seed ...))
               (($ <conditional> src test consequent alternate)
                (let*-values (((seed ...) (foldts test seed ...))
@@ -369,18 +349,6 @@ This is an implementation of `foldts' as described by Andy Wingo in
             (if (eq? exp exp*)
                 x
                 (make-lexical-set src name gensym exp*))))
-
-         (($ <toplevel-set> src name exp)
-          (let ((exp* (lp exp)))
-            (if (eq? exp exp*)
-                x
-                (make-toplevel-set src name exp*))))
-
-         (($ <toplevel-define> src name exp)
-          (let ((exp* (lp exp)))
-            (if (eq? exp exp*)
-                x
-                (make-toplevel-define src name exp*))))
 
          (($ <conditional> src test consequent alternate)
           (let ((test* (lp test))

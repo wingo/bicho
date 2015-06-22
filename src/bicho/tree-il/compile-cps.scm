@@ -444,26 +444,6 @@
           (let$ k (adapt-arity k src 1))
           (build-term ($continue k src ($primcall 'box-ref (box))))))))
 
-    (($ <toplevel-set> src name exp)
-     (convert-arg cps exp
-       (lambda (cps val)
-         (toplevel-box
-          cps src name #f
-          (lambda (cps box)
-            (with-cps cps
-              (let$ k (adapt-arity k src 0))
-              (build-term
-                ($continue k src ($primcall 'box-set! (box val))))))))))
-
-    (($ <toplevel-define> src name exp)
-     (convert-arg cps exp
-       (lambda (cps val)
-         (with-cps cps
-           (let$ k (adapt-arity k src 0))
-           ($ (with-cps-constants ((name name))
-                (build-term
-                  ($continue k src ($primcall 'define! (name val))))))))))
-
     (($ <call> src proc args)
      (convert-args cps (cons proc args)
        (match-lambda*
@@ -786,7 +766,6 @@ integer."
 
 (define %warning-passes
   `((unused-variable     . ,unused-variable-analysis)
-    (unused-toplevel     . ,unused-toplevel-analysis)
     (unbound-variable    . ,unbound-variable-analysis)
     (arity-mismatch      . ,arity-analysis)
     (format              . ,format-analysis)))

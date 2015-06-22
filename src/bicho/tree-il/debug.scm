@@ -178,18 +178,6 @@
        (cond
         ((not (symbol? name))
          (error "name should be symbol" exp))))
-      (($ <toplevel-set> src name exp)
-       (cond
-        ((not (symbol? name))
-         (error "name should be a symbol" name))
-        (else
-         (visit exp env))))
-      (($ <toplevel-define> src name exp)
-       (cond
-        ((not (symbol? name))
-         (error "name should be a symbol" name))
-        (else
-         (visit exp env))))
       (($ <conditional> src condition subsequent alternate)
        (visit condition env)
        (visit subsequent env)

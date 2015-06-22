@@ -287,12 +287,6 @@ of an expression."
           (($ <toplevel-ref>)
            (logior &toplevel
                    (cause &type-check)))
-          (($ <toplevel-define> _ name exp)
-           (logior (cause &toplevel)
-                   (compute-effects exp)))
-          (($ <toplevel-set> _ name exp)
-           (logior (cause &toplevel)
-                   (compute-effects exp)))
           (($ <primitive-ref>)
            &no-effects)
           (($ <conditional> _ test consequent alternate)

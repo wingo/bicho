@@ -266,29 +266,13 @@
   (hashq-ref *negatable-primitive-table* prim))
 
 (define (resolve-primitives x mod)
-  (define local-definitions
-    (make-hash-table))
-
-  ;; Assume that any definitions with primitive names in the root module
-  ;; have the same semantics as the primitives.
-  (unless (eq? mod the-root-module)
-    (let collect-local-definitions ((x x))
-      (record-case x
-        ((<toplevel-define> name)
-         (hashq-set! local-definitions name #t))
-        ((<seq> head tail)
-         (collect-local-definitions head)
-         (collect-local-definitions tail))
-        (else #f))))
-  
   (post-order
    (lambda (x)
      (or
       (record-case x
         ((<toplevel-ref> src name)
-         (and=> (and (not (hashq-ref local-definitions name))
-                     (hashq-ref *interesting-primitive-vars*
-                                (module-variable mod name)))
+         (and=> (hashq-ref *interesting-primitive-vars*
+                           (module-variable mod name))
                 (lambda (name) (make-primitive-ref src name))))
         ((<call> src proc args)
          (and (primitive-ref? proc)
