@@ -2013,7 +2013,7 @@
  (let ()
    (define (convert-pattern pattern keys ellipsis?)
      ;; accepts pattern & keys
-     ;; returns $$sc-dispatch pattern & ids
+     ;; returns $sc-dispatch pattern & ids
      (define (cvt* p* n ids)
        (syntax-case p* ()
          ((x . y)
@@ -2124,7 +2124,7 @@
                          (list (if (eq? p 'any)
                                    (build-primcall no-source 'list (list x))
                                    (build-call no-source
-                                               (build-data no-source $$sc-dispatch)
+                                               (build-data no-source $sc-dispatch)
                                                (list x (build-data no-source p))))))))))))
 
    (define (gen-syntax-case x keys clauses r)
@@ -2257,7 +2257,7 @@
   (arg-check nonsymbol-id? id 'syntax-locally-bound-identifiers)
   (locally-bound-identifiers (syntax-object-wrap id)))
 
-;; $$sc-dispatch expects an expression and a pattern.  If the expression
+;; $sc-dispatch expects an expression and a pattern.  If the expression
 ;; matches the pattern a list of the matching expressions for each
 ;; "any" is returned.  Otherwise, #f is returned.  (This use of #f will
 ;; not work on r4rs implementations that violate the ieee requirement
@@ -2280,7 +2280,7 @@
 ;; not, should convert to:
 ;;   #(vector <pattern>*)               #(<pattern>*)
 
-(define $$sc-dispatch
+(define $sc-dispatch
   (let ()
     (define (match-each e p w)
       (cond
@@ -2416,6 +2416,20 @@
         (set-procedure-property! trans 'variable-transformer #t)
         trans)
       (error "variable transformer not a procedure" proc)))
+
+(define-syntax-rule (export-syntax-helpers! name ...)
+  (begin
+    (add-compile-time-value! 'name name)
+    ...))
+
+(export-syntax-helpers!
+ identifier? datum->syntax syntax->datum syntax-source
+ generate-temporaries
+ free-identifier=? bound-identifier=?
+ syntax-violation
+ syntax-local-binding syntax-locally-bound-identifiers
+ $sc-dispatch
+ make-variable-transformer)
 
 (macroexpand
  '(begin
@@ -2646,28 +2660,24 @@
     (define-syntax include
       (lambda (x)
         (define (read-file fn dir k)
-          (let* ((p (open-input-file
-                     (if (absolute-file-name? fn)
-                         fn
-                         (if dir
-                             (in-vicinity dir fn)
-                             (syntax-violation
-                              'include
-                              "relative file name only allowed when the include form is in a file"
-                              x)))))
-                 (enc (file-encoding p)))
-
-            ;; Choose the input encoding deterministically.
-            (set-port-encoding! p (or enc "UTF-8"))
-
-            (let f ((x (read p))
-                    (result '()))
-              (if (eof-object? x)
-                  (begin
-                    (close-input-port p)
-                    (reverse result))
-                  (f (read p)
-                     (cons (datum->syntax k x) result))))))
+          (call-with-input-file
+              (if (absolute-file-name? fn)
+                  fn
+                  (if dir
+                      (in-vicinity dir fn)
+                      (syntax-violation
+                       'include
+                       "relative file name only allowed when the include form is in a file"
+                       x)))
+            (lambda (p)
+              (let ((enc (file-encoding p)))
+                ;; Choose the input encoding deterministically.
+                (set-port-encoding! p (or enc "UTF-8"))
+                (let f ()
+                  (let ((x (read p)))
+                    (if (eof-object? x)
+                        '()
+                        (cons (datum->syntax k x) (f)))))))))
         (let* ((src (syntax-source x))
                (file (and src (assq-ref src 'filename)))
                (dir (and (string? file) (dirname file))))
